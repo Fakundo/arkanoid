@@ -1,0 +1,687 @@
+<? header("Content-Type: text/html; charset=utf-8"); ?>
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="keywords" content="Arkanoid Javascript box2d box2dweb">
+	<meta name="description" content="Arkanoid game created in JavaScript using box2dweb">
+	<title>Arkanoid</title>
+	<script src="jquery-1.7.1.min.js"></script>
+	<script src="Box2dWeb/Box2dWeb-2.1.a.3.min.js"></script>
+	<style>
+		* {
+			padding: 0;
+			margin: 0;
+			cursor: default;
+		}
+		body {
+			color: #777;
+			text-shadow: 1px 1px 1px #fff;
+			font: 14px "Tahoma";
+			-webkit-user-select: none;
+			-moz-user-select: none;
+			user-select: none;
+			background: url(images/bg.png);
+		}
+		#arkanoid {
+			margin: 15px auto;
+			background: #eee;
+			-webkit-border-radius: 10px;
+			-moz-border-radius: 10px;
+			border-radius: 10px;
+			-webkit-box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+			-moz-box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+			-webkit-box-shadow: 0 0 4px rgba(0, 0, 0, 0.2), inset 0 0 50px rgba(0, 0, 0, 0.1);
+			-moz-box-shadow: 0 0 4px rgba(0, 0, 0, 0.2), inset 0 0 50px rgba(0, 0, 0, 0.1);
+			box-shadow: 0 0 5px rgba(0, 0, 0, 0.2), inset 0 0 50px rgba(0, 0, 0, 0.1);
+			box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+		}
+		#arkanoid_container {
+			border: 1px solid #fff;
+			border-top-color: #bbb;
+			border-left-color: #bbb;
+			background: #fff;
+			position: relative;
+			margin: 0 auto;
+			-moz-transform: matrix(a, c, b, d, tx, ty);
+			-webkit-transform: matrix(a, c, b, d, tx, ty);
+			-o-transform: matrix(a, c, b, d, tx, ty);
+			-ms-transform: matrix(a, c, b, d, tx, ty);
+		}
+		#arkanoid_screen {
+			position: absolute;
+			background: #000;
+			text-align: center;
+			color: #fff;
+			left: 0;
+			top: 0;
+			padding-top: 10px;
+			font-size: 15px;
+			text-shadow: none;
+		}
+		#arkanoid_info {
+			text-align: center;
+		}
+		#arkanoid_head {
+			font-size: 9px;
+			width: 254px;
+			padding-top: 60px;
+			margin: 0 auto;
+			background: url("images/head.png") no-repeat;
+		}
+		#arkanoid_level {
+			padding-top: 5px;
+		}
+		#arkanoid_bonus {
+			height: 20px;
+		}
+		#arkanoid_bonus span {
+			display: none;
+		}
+		#arkanoid_separator {
+			border-top: 1px solid #bbb;
+			border-bottom: 1px solid #fff;
+			font-size: 1px;
+			line-height: 1px;
+			margin: 3px 0;
+		}
+		#arkanoid_footer {
+			font-size: 12px;
+			text-align: center;
+		}
+	</style>
+</head>
+<body
+	onload="ark.init(); $('#arkanoid_container').css('visibility','hidden'); ark.loadScreen('Start New Game', function () {ark.init(); ark.bonuses.renderBonus('Use mouse to move Slider','blue'); }, true); setTimeout(function(){$('#arkanoid_container').css('visibility','visible');},300);">
+<div id="arkanoid"></div>
+<div id='arkanoid_footer'>Developed by Samoilov Roman</div>
+</body>
+<script type="text/javascript">
+
+var b2Vec2 = Box2D.Common.Math.b2Vec2, b2AABB = Box2D.Collision.b2AABB, b2BodyDef = Box2D.Dynamics.b2BodyDef, b2Body = Box2D.Dynamics.b2Body, b2FixtureDef = Box2D.Dynamics.b2FixtureDef, b2Fixture = Box2D.Dynamics.b2Fixture, b2World = Box2D.Dynamics.b2World, b2MassData = Box2D.Collision.Shapes.b2MassData, b2PolygonShape = Box2D.Collision.Shapes.b2PolygonShape, b2CircleShape = Box2D.Collision.Shapes.b2CircleShape, b2DebugDraw = Box2D.Dynamics.b2DebugDraw, b2MouseJointDef = Box2D.Dynamics.Joints.b2MouseJointDef, b2DestructionListener = Box2D.Dynamics.b2DestructionListener, b2ContactListener = Box2D.Dynamics.b2ContactListener;
+
+var ark = {
+	tm:null,
+	world:null,
+	fix_def:null,
+	body_def:null,
+	cont:null,
+	opt:{},
+	lvls:{
+		nextLvl:function () {
+			var c;
+			while (c = ark.world.GetBodyList()) {
+				ark.world.DestroyBody(c);
+			}
+			ark.resetOpt();
+			$.extend(ark.opt, ark.lvls[ark.opt.cur_lvl].opt);
+			ark.lvls[ark.opt.cur_lvl].build();
+			ark.buildCommonObjects();
+			ark.lvls.renderLvl();
+			$("#arkanoid_canvas").css("background", "url(" + ark.lvls[ark.opt.cur_lvl].bg + ")");
+		},
+		renderLvl:function () {
+			$("#arkanoid_level span").html(ark.opt.cur_lvl);
+		},
+		1:{
+			build:function () {
+				ark.enemies.addEnemy(2.5, 3, 1, 0);
+				ark.enemies.addEnemy(4, 3, 1, 0);
+				ark.enemies.addEnemy(5.5, 3, 1, 0);
+				ark.enemies.addEnemy(7, 3, 1, 0);
+				ark.enemies.addEnemy(8.5, 3, 1, 0);
+				ark.enemies.addEnemy(2.5, 4.5, 1, 0);
+				ark.enemies.addEnemy(4, 4.5, 1, 0);
+				ark.enemies.addEnemy(5.5, 4.5, 1, 0);
+				ark.enemies.addEnemy(7, 4.5, 1, 0);
+				ark.enemies.addEnemy(8.5, 4.5, 1, 0);
+				ark.enemies.addEnemy(2.5, 6, 1, 0);
+				ark.enemies.addEnemy(4, 6, 1, 0);
+				ark.enemies.addEnemy(5.5, 6, 1, 0);
+				ark.enemies.addEnemy(7, 6, 1, 0);
+				ark.enemies.addEnemy(8.5, 6, 1, 0);
+			},
+			opt:{
+				ball_speed:5,
+				slider_w:4
+			},
+			bg:"images/bg1.png"
+		},
+		2:{
+			build:function () {
+				ark.enemies.addEnemy(2.5, 3, 1, 0);
+				ark.enemies.addEnemy(4, 3, 1, 0);
+				ark.enemies.addEnemy(5.5, 3, 1, 0);
+				ark.enemies.addEnemy(7, 3, 1, 0);
+				ark.enemies.addEnemy(8.5, 3, 1, 0);
+				ark.walls.addWall(3, 5, 2, 0.2, 0, "simple_wall");
+				ark.walls.addWall(7, 5, 2, 0.2, 0, "simple_wall");
+				ark.enemies.addEnemy(4, 7, 3, 0);
+				ark.enemies.addEnemy(6.5, 7, 3, 0);
+			},
+			opt:{
+				ball_speed:7,
+				enemy_hor_speed:0.01
+			},
+			bg:"images/bg1.png"
+		},
+		3:{
+			build:function () {
+				ark.walls.addWall(2, 8, 2, 0.2, 0.2, "simple_wall");
+				ark.walls.addWall(8, 5.5, 2, 0.2, -0.2, "simple_wall");
+				ark.enemies.addEnemy(2.5, 3, 1, 0);
+				ark.enemies.addEnemy(2.5, 5, 1, 0);
+				ark.enemies.addEnemy(4, 5, 1, 0);
+				ark.enemies.addEnemy(6.5, 7, 3, 0);
+				ark.enemies.addEnemy(8, 7, 3, 0);
+				ark.enemies.addEnemy(6.5, 2.5, 3, 0);
+				ark.enemies.addEnemy(8, 2.5, 3, 0);
+				ark.enemies.addEnemy(6.5, 4, 2, 0.1);
+				ark.enemies.addEnemy(8, 4, 2, -0.1);
+			},
+			opt:{
+				ball_speed:9,
+				enemy_hor_speed:0.0005
+			},
+			bg:"images/bg2.png"
+		}
+	},
+	enemies:{
+		array:{},
+		tm:setTimeout(function () {
+		}, 0),
+		addEnemy:function (x, y, kind, angle) {
+			var h, w = h = ark.opt.enemy_size, s = ark.getUniqueString();
+			ark.body_def.type = b2Body.b2_staticBody;
+			ark.fix_def.shape = new b2PolygonShape;
+			ark.fix_def.shape.SetAsBox(w / 2, h / 2);
+			ark.body_def.position.Set(x + w / 2, y + h / 2);
+			var obj = ark.world.CreateBody(ark.body_def), img = new Image();
+			img.src = "images/enemy" + kind + ".png";
+			obj.SetAngle(angle);
+			obj.CreateFixture(ark.fix_def);
+			obj.SetUserData({type:"enemies", id:s, kind:kind, img:img});
+			ark.enemies.array[s] = obj;
+		},
+		hitEnemy:function (id) {
+			ark.balls.increaseSpeed();
+			var obj = ark.enemies.array[id], kind = obj.GetUserData().kind;
+			if (kind == 1) {
+				if (ark.enemies.getCount() == 1) {
+					var i, tmp;
+					for (i in ark.balls.array) {
+						tmp = ark.balls.array[i];
+						tmp.GetFixtureList().SetSensor(true);
+						tmp.SetLinearVelocity(new b2Vec2(0, 0));
+					}
+					function f() {
+						function g() {
+							for (i in ark.balls.array) {
+								tmp = ark.balls.array[i];
+								tmp.SetLinearVelocity(new b2Vec2(ark.opt.con_w / 2 - tmp.GetPosition().x, -1 - tmp.GetPosition().y));
+								tmp.SetAwake(true);
+							}
+							setTimeout(function () {
+								ark.opt.cur_lvl++;
+								if (ark.lvls[ark.opt.cur_lvl] == null) {
+									ark.loadScreen("Finish<br>(Click to start New Game)", function () {
+										ark.init();
+									}, true);
+								} else {
+									ark.loadScreen("Level " + ark.opt.cur_lvl + "<br>(Click to Continue)", function () {
+										ark.lvls.nextLvl();
+									}, true);
+								}
+							}, 1000);
+						}
+
+						for (i in ark.walls.array) {
+							tmp = ark.walls.array[i];
+							if (tmp.GetUserData().kind == "gate_1") {
+								if (tmp.GetPosition().x + ark.opt.con_w / 4 < 0.8) {
+									g();
+									return;
+								} else {
+									tmp.SetPosition(new b2Vec2(tmp.GetPosition().x - ark.opt.gates_speed, tmp.GetPosition().y));
+								}
+							} else if (tmp.GetUserData().kind == "gate_2") {
+								if (tmp.GetPosition().x - ark.opt.con_w / 4 > ark.opt.con_w - 0.8) {
+									g();
+									return;
+								} else {
+									tmp.SetPosition(new b2Vec2(tmp.GetPosition().x + ark.opt.gates_speed, tmp.GetPosition().y));
+								}
+							}
+						}
+						setTimeout(f, 1000 / 16);
+					}
+
+					f();
+				}
+				ark.objects_to_destroy.push(["enemies", id]);
+			} else {
+				var img = new Image();
+				img.src = "images/enemy" + (kind - 1) + ".png";
+				$.extend(obj.GetUserData(), {kind:kind - 1, img:img});
+			}
+			if (Math.floor(Math.random() * 10) == 0) {
+				ark.objects_to_add.add(function () {
+					ark.bonuses.addBonus(obj.GetPosition().x, obj.GetPosition().y, Math.round(Math.random() * 5));
+				});
+			}
+		},
+		getCount:function () {
+			var s = 0, i;
+			for (i in ark.enemies.array) s++;
+			return s;
+		}
+	},
+	sensors:{
+		addSensor:function (x, y, w, h) {
+			ark.body_def.type = b2Body.b2_staticBody;
+			ark.fix_def.shape = new b2PolygonShape;
+			ark.fix_def.shape.SetAsBox(w / 2, h / 2);
+			ark.body_def.position.Set(x + w / 2, y + h / 2);
+			var obj = ark.world.CreateBody(ark.body_def), img = new Image();
+			img.src = "images/transparent.png";
+			obj.CreateFixture(ark.fix_def).SetSensor(true);
+			obj.SetUserData({type:"sensors", img:img});
+		},
+		hitSensor:function (type, id) {
+			if (type == "balls" && ark.balls.getCount() == 1) {
+				ark.loadScreen("Game Over<br>(Click to start New Game)", function () {
+					ark.init();
+				}, false);
+			}
+			ark.objects_to_destroy.push([type, id]);
+		}
+	},
+	walls:{
+		array:{},
+		addWall:function (x, y, w, h, angle, kind) {
+			ark.body_def.type = b2Body.b2_staticBody;
+			ark.fix_def.shape = new b2PolygonShape;
+			ark.fix_def.shape.SetAsBox(w / 2, h / 2);
+			ark.body_def.position.Set(x + w / 2, y + h / 2);
+			var obj = ark.world.CreateBody(ark.body_def), s = ark.getUniqueString(), img = new Image();
+			img.src = "images/" + (kind == "simple_wall" ? "wall" : "gates") + ".png";
+			obj.SetAngle(angle);
+			obj.CreateFixture(ark.fix_def);
+			obj.SetUserData({type:"walls", id:s, kind:kind, img:img});
+			ark.walls.array[s] = obj;
+		}
+	},
+	balls:{
+		array:{},
+		addBall:function (x, y, v) {
+			ark.body_def.type = b2Body.b2_dynamicBody;
+			ark.fix_def.shape = new b2CircleShape;
+			ark.fix_def.shape.SetRadius(ark.opt.ball_r / 2, ark.opt.ball_r / 2);
+			ark.body_def.position.Set(x, y);
+			var obj = ark.world.CreateBody(ark.body_def), s = ark.getUniqueString(), img = new Image();
+			img.src = "images/ball.png";
+			obj.CreateFixture(ark.fix_def);
+			obj.SetUserData({type:"balls", id:s, img:img});
+			obj.SetLinearVelocity(v);
+			ark.balls.array[s] = obj;
+		},
+		increaseSpeed:function () {
+			var obj, i, vx, vy;
+			for (i in ark.balls.array) {
+				obj = ark.balls.array[i];
+				vx = obj.GetLinearVelocity().x;
+				vy = obj.GetLinearVelocity().y;
+				obj.SetLinearVelocity(new b2Vec2(vx != 0 ? vx * (Math.abs(vx) + ark.opt.ball_acc) / Math.abs(vx) : 0, vy != 0 ? vy * (Math.abs(vy) + ark.opt.ball_acc) / Math.abs(vy) : 0));
+			}
+		},
+		getCount:function () {
+			var s = 0, i;
+			for (i in ark.balls.array) s++;
+			return s;
+		}
+	},
+	slider:{
+		obj:null,
+		tm:null,
+		tm2:null,
+		addSlider:function (x, y) {
+			ark.body_def.type = b2Body.b2_staticBody;
+			ark.fix_def.shape = new b2PolygonShape;
+			ark.fix_def.shape.SetAsBox(ark.opt.slider_w / 2, ark.opt.slider_h / 2);
+			ark.body_def.position.Set(x + ark.opt.slider_w / 2, y + ark.opt.slider_h / 2);
+			var obj = ark.world.CreateBody(ark.body_def), img = new Image();
+			img.src = "images/slider.png";
+			obj.CreateFixture(ark.fix_def);
+			obj.SetUserData({type:"slider", img:img});
+			ark.slider.obj = obj;
+		},
+		moveSlider:function (pos) {
+			var obj = ark.slider.obj, oldX = obj.GetPosition().x;
+			ark.slider.setAngle((oldX > pos ? -1 : 1) * Math.tan(0.1 / ark.opt.slider_h / 2), 0);
+			pos = pos <= 0.2 + ark.opt.slider_w / 2 ? 0.2 + ark.opt.slider_w / 2 : (pos >= ark.opt.con_w - 0.2 - ark.opt.slider_w / 2 ? ark.opt.con_w - 0.2 - ark.opt.slider_w / 2 : pos);
+			obj.SetPosition(new b2Vec2(pos, obj.GetPosition().y));
+			if (ark.opt.ball_stucked) {
+				for (var i in ark.balls.array) {
+					obj = ark.balls.array[i];
+					obj.SetPosition(new b2Vec2(pos, obj.GetPosition().y));
+				}
+			}
+		},
+		setAngle:function (angle, ms) {
+			var obj = ark.slider.obj, oldA = obj.GetAngle();
+			clearTimeout(ark.slider.tm);
+			clearTimeout(ark.slider.tm2);
+			ark.slider.tm = setTimeout(function () {
+				var i = 0, na = (angle - oldA) / 10, a = oldA;
+
+				function f() {
+					if (i == 10) {
+						obj.SetAngle(angle);
+						ark.slider.setAngle(0, 300);
+						return;
+					}
+					a += na;
+					obj.SetAngle(a);
+					i++;
+					ark.slider.tm2 = setTimeout(f, 20);
+				}
+
+				f();
+			}, ms);
+		},
+		setWidth:function (w) {
+			ark.opt.slider_w = w > ark.opt.slider_maxw ? ark.opt.slider_maxw : (w < ark.opt.slider_minw ? ark.opt.slider_minw : w);
+			ark.objects_to_add.add(function () {
+				ark.fix_def.shape = new b2PolygonShape;
+				ark.fix_def.shape.SetAsBox(ark.opt.slider_w / 2, ark.opt.slider_h / 2);
+				ark.slider.obj.DestroyFixture(ark.slider.obj.GetFixtureList());
+				ark.slider.obj.CreateFixture(ark.fix_def);
+			});
+
+		}
+	},
+	bonuses:{
+		array:{},
+		tm:null,
+		addBonus:function (x, y, kind) {
+			var h, w = h = ark.opt.bonus_size, s = ark.getUniqueString();
+			ark.body_def.type = b2Body.b2_dynamicBody;
+			ark.fix_def.shape = new b2PolygonShape;
+			ark.fix_def.shape.SetAsBox(w / 2, h / 2);
+			ark.body_def.position.Set(x, y);
+			var obj = ark.world.CreateBody(ark.body_def), img = new Image();
+			img.src = "images/bonus" + kind + ".png";
+			obj.CreateFixture(ark.fix_def).SetSensor(true);
+			obj.SetUserData({type:"bonuses", id:s, kind:kind, img:img});
+			obj.SetLinearVelocity(new b2Vec2(0, 5));
+			ark.bonuses.array[s] = obj;
+		},
+		hitBonus:function (id) {
+			ark.bonuses.activateBonus(ark.bonuses.array[id].GetUserData().kind);
+			ark.objects_to_destroy.push(["bonuses", id]);
+		},
+		activateBonus:function (kind) {
+			var tmp, i;
+			switch (kind) {
+				case 0:
+				{
+					for (i in ark.balls.array) {
+						tmp = ark.balls.array[i];
+						ark.objects_to_add.add(function () {
+							if (ark.balls.getCount() < 2) {
+								ark.bonuses.renderBonus("Balls are doubles", "green");
+								ark.balls.addBall(tmp.GetPosition().x, tmp.GetPosition().y, new b2Vec2(tmp.GetLinearVelocity().x, tmp.GetLinearVelocity().y));
+							}
+						});
+					}
+					break;
+				}
+				case 1:
+				{
+					for (i in ark.balls.array) {
+						tmp = ark.balls.array[i];
+						tmp.SetLinearVelocity(new b2Vec2(tmp.GetLinearVelocity().x * 1.1, tmp.GetLinearVelocity().y * 1.1));
+					}
+					ark.bonuses.renderBonus("Balls move faster", "green");
+					break;
+				}
+				case 2:
+				{
+					for (i in ark.balls.array) {
+						tmp = ark.balls.array[i];
+						tmp.SetLinearVelocity(new b2Vec2(tmp.GetLinearVelocity().x * 0.9, tmp.GetLinearVelocity().y * 0.9));
+					}
+					ark.bonuses.renderBonus("Balls move slower", "red");
+					break;
+				}
+				case 3:
+				{
+					ark.slider.setWidth(ark.opt.slider_w + 0.2);
+					ark.bonuses.renderBonus("Slider becomes bigger", "green");
+					break;
+				}
+				case 4:
+				{
+					ark.slider.setWidth(ark.opt.slider_w - 0.2);
+					ark.bonuses.renderBonus("Slider becomes smaller", "red");
+					break;
+				}
+				case 5:
+				{
+					ark.bonuses.activateBonus(Math.round(Math.random() * 4));
+				}
+			}
+		},
+		renderBonus:function (str, color) {
+			$("#arkanoid_bonus span").stop(true, true).css("color", color).html(str).fadeIn("slow");
+			clearTimeout(ark.bonuses.tm);
+			ark.bonuses.tm = setTimeout(function () {
+				$("#arkanoid_bonus span").stop(true, true).fadeOut("slow");
+			}, 3000);
+		}
+	},
+	objects_to_destroy:[],
+	destroyObjects:function () {
+		var o;
+		for (var i = 0; i < ark.objects_to_destroy.length; i++) {
+			o = ark.objects_to_destroy[i];
+			ark.world.DestroyBody(ark[o[0]].array[o[1]]);
+			delete ark[o[0]].array[o[1]];
+		}
+		ark.objects_to_destroy = [];
+	},
+	objects_to_add:$.Callbacks(),
+	getUniqueString:function () {
+		var s = "", i;
+		for (i = 0; i < 6; i++) {
+			s += String.fromCharCode(Math.floor(Math.random() * (122 - 98)) + 97);
+		}
+		return s;
+	},
+	init:function () {
+		ark.resetAll();
+
+		$("#arkanoid").css({width:(ark.opt.con_w * 30 + 30) + "px"}).html("<div id='arkanoid_info'></div><div id='arkanoid_container'></div><div style='height:15px'></div>");
+		$("#arkanoid_info").css({width:ark.opt.con_w * 30 + "px", marginLeft:"15px"}).html("<div id='arkanoid_head'>FOR DEMONSTRATION</div><div id='arkanoid_level'>Level <span>0</span></div></div><div id='arkanoid_separator'></div><div id='arkanoid_bonus'><span></span></div>");
+		var e = $("#arkanoid_container").css({width:ark.opt.con_w * 30 + "px", height:ark.opt.con_h * 30 + "px"}).html("<canvas id='arkanoid_canvas'></canvas><div id='arkanoid_screen'></div>");
+		$("#arkanoid_screen").css({width:ark.opt.con_w * 30 + "px", height:ark.opt.con_h * 30 - 10 + "px", display:"none"});
+		$("#arkanoid_canvas").attr({width:ark.opt.con_w * 30 + "px", height:ark.opt.con_h * 30 + "px"});
+		ark.opt.canvas_pos.x = e.get(0).offsetLeft;
+		ark.opt.canvas_pos.y = e.get(0).offsetTop;
+
+		ark.world = new b2World(new b2Vec2(0, 0), true);
+
+		var cl = new b2ContactListener();
+		cl.BeginContact = function (c) {
+			var data1 = c.GetFixtureA().GetBody().GetUserData(), data2 = c.GetFixtureB().GetBody().GetUserData();
+			if (data2.type == "balls") {
+				if (data1.type == "enemies") {
+					ark.enemies.hitEnemy(data1.id);
+				} else if (data1.type == "sensors") {
+					ark.sensors.hitSensor("balls", data2.id);
+				}
+			} else if (data1.type == "bonuses") {
+				if (data2.type == "slider") {
+					ark.bonuses.hitBonus(data1.id);
+				} else if (data2.type == "sensors") {
+					ark.sensors.hitSensor("bonuses", data1.id);
+				}
+			}
+		};
+		ark.world.SetContactListener(cl);
+
+		ark.cont = $("#arkanoid_canvas").get(0).getContext("2d");
+
+		//var debugDraw = new b2DebugDraw();
+		//debugDraw.SetSprite(document.getElementById("arkanoid_canvas").getContext("2d"));
+		//debugDraw.SetDrawScale(30.0);
+		//debugDraw.SetFillAlpha(0.9);
+		//debugDraw.SetLineThickness(0.5);
+		//debugDraw.SetFlags(b2DebugDraw.e_shapeBit);
+		//ark.world.SetDebugDraw(debugDraw);
+
+		ark.fix_def = new b2FixtureDef;
+		ark.fix_def.density = 1.0;
+		ark.fix_def.friction = 0;
+		ark.fix_def.restitution = 1.0;
+		ark.body_def = new b2BodyDef;
+
+		ark.lvls.nextLvl();
+	},
+	buildCommonObjects:function () {
+		ark.walls.addWall(0.1, 1.5, 0.2, 0.4, Math.PI / 4, "simple_wall");
+		ark.walls.addWall(ark.opt.con_w - 0.3, 1.5, 0.2, 0.4, -Math.PI / 4, "simple_wall");
+		ark.walls.addWall(0.2, 1.4, ark.opt.con_w / 2 - 0.2, 0.2, 0, "gate_1");
+		ark.walls.addWall(ark.opt.con_w / 2, 1.4, ark.opt.con_w / 2 - 0.2, 0.2, 0, "gate_2");
+		ark.walls.addWall(0, 0, 0.2, ark.opt.con_h, 0, "simple_wall");
+		ark.walls.addWall(ark.opt.con_w - 0.2, 0, 0.2, ark.opt.con_h, 0, "simple_wall");
+
+		ark.slider.addSlider(ark.opt.con_w / 2 - ark.opt.slider_w / 2, ark.opt.con_h - ark.opt.slider_h - 0.4 - 0.3);
+		ark.balls.addBall(ark.opt.con_w / 2, ark.opt.con_h - ark.opt.slider_h - 0.4 - 0.3 - ark.opt.ball_r / 2, new b2Vec2(0, 0));
+		ark.sensors.addSensor(0.2, ark.opt.con_h, ark.opt.con_w - 0.4, 0.1);
+
+		clearTimeout(ark.enemies.tm);
+		var obj, i, sx = ark.opt.con_w, minx, maxx, offset = ark.opt.enemy_hor_speed;
+		for (i in ark.enemies.array) {
+			obj = ark.enemies.array[i];
+			sx = Math.min(sx, obj.GetPosition().x);
+		}
+		minx = 1.5;
+		maxx = sx * 2 - 1.5;
+		function f() {
+			var i, obj;
+			if (sx <= minx || sx >= maxx) {
+				offset *= -1;
+			}
+			sx += offset;
+			for (i in ark.enemies.array) {
+				obj = ark.enemies.array[i];
+				obj.SetPosition(new b2Vec2(obj.GetPosition().x += offset, obj.GetPosition().y));
+			}
+			ark.enemies.tm = setTimeout(f, 1000 / 60);
+		}
+
+		f();
+
+		clearInterval(ark.tm);
+		ark.tm = window.setInterval(ark.redrawWorld, 1000 / 60);
+
+		$(document).unbind("mousedown").bind("mousedown",
+			function (e) {
+				if (!e) e = window.event;
+				var p = ark.slider.obj.GetPosition(), trX = (e.clientX - ark.opt.canvas_pos.x) / 30, trY = (e.clientY - ark.opt.canvas_pos.y) / 30;
+				if (p.x - ark.opt.slider_w / 2 <= trX && p.x + ark.opt.slider_w / 2 >= trX && p.y - ark.opt.slider_h / 2 <= trY && p.y + ark.opt.slider_h / 2 >= trY) {
+					var ofX = trX - p.x;
+					$(document).bind("mousemove",
+						function (e) {
+							if (!e) e = window.event;
+							ark.slider.moveSlider((e.clientX - ark.opt.canvas_pos.x) / 30 - ofX);
+						}).bind("mouseup", function () {
+							$(document).unbind("mousemove").unbind("mouseup");
+						});
+				}
+			}).bind("keypress", function (e) {
+				if (!e) e = window.event;
+				if (e.keyCode == 32 && ark.opt.ball_stucked == true) {
+					$(document).unbind("keypress");
+					ark.opt.ball_stucked = false;
+					for (var i in ark.balls.array) {
+						ark.balls.array[i].SetLinearVelocity(new b2Vec2(0, -ark.opt.ball_speed));
+						ark.balls.array[i].SetAwake(true);
+					}
+					return false;
+				}
+			});
+	},
+	renderWorld:function () {
+		var img, tmp, cont = ark.cont;
+		cont.clearRect(0, 0, ark.opt.con_w * 30, ark.opt.con_h * 30);
+		tmp = ark.world.GetBodyList();
+		do {
+			img = tmp.GetUserData().img;
+			cont.save();
+			cont.translate(tmp.GetPosition().x * 30, tmp.GetPosition().y * 30);
+			cont.rotate(tmp.GetAngle());
+			if (tmp.GetUserData().type == "walls" || tmp.GetUserData().type == "slider") {
+				cont.fillStyle = cont.createPattern(img, "repeat");
+				cont.fillRect(tmp.GetFixtureList().GetShape().m_vertices[0].x * 30, tmp.GetFixtureList().GetShape().m_vertices[0].y * 30, tmp.GetFixtureList().GetShape().m_vertices[2].x * 2 * 30, tmp.GetFixtureList().GetShape().m_vertices[2].y * 2 * 30);
+			} else if (tmp.GetFixtureList().GetShape().m_vertices == null) {
+				cont.drawImage(img, -tmp.GetFixtureList().GetShape().m_radius * 30 - 10, -tmp.GetFixtureList().GetShape().m_radius * 30 - 8);
+			} else {
+				cont.drawImage(img, tmp.GetFixtureList().GetShape().m_vertices[0].x * 30 - 10, tmp.GetFixtureList().GetShape().m_vertices[0].y * 30 - 10);
+			}
+			cont.restore();
+		} while (tmp = tmp.GetNext());
+	},
+	redrawWorld:function () {
+		ark.world.Step(1 / 60, 10, 10);
+		ark.world.ClearForces();
+		ark.objects_to_add.fire().empty();
+		ark.destroyObjects();
+		//ark.world.DrawDebugData();
+		ark.renderWorld();
+	},
+	loadScreen:function (text, fun, heaven) {
+		clearInterval(ark.tm);
+		$("#arkanoid_screen").html(text).css("background", heaven ? "url(images/win.png)" : "url(images/lose.png)").unbind("click").bind("click",
+			function () {
+				fun.call();
+				$(this).stop(true, true).fadeOut("normal");
+			}).fadeIn("normal");
+	},
+	resetOpt:function () {
+		$.extend(ark.opt, {
+			slider_w:3,
+			ball_stucked:true,
+			ball_speed:6,
+			ball_acc:0.3,
+			enemy_hor_speed:0.005
+		});
+		ark.enemies.array = {};
+		ark.balls.array = {};
+		ark.bonuses.array = {};
+		ark.walls.array = {};
+	},
+	resetAll:function () {
+		ark.opt = {
+			con_w:12,
+			con_h:14,
+			slider_w:3,
+			slider_h:0.5,
+			slider_maxw:5,
+			slider_minw:1,
+			gates_speed:0.1,
+			canvas_pos:{x:0, y:0},
+			ball_stucked:true,
+			ball_r:0.5,
+			ball_speed:6,
+			ball_acc:0.3,
+			enemy_size:1,
+			enemy_hor_speed:0.005,
+			bonus_size:0.6,
+			cur_lvl:1
+		};
+	}
+};
+</script>
+</html>
