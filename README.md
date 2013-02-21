@@ -1,4 +1,4 @@
-Arcanoid
+Arkanoid
 ========
 
-Javascript Box2D Arcanoid
+Javascript Box2D Arkanoid
