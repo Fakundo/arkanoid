@@ -602,7 +602,8 @@ var ark = {
 				}
 			}).bind("keypress", function (e) {
 				if (!e) e = window.event;
-				if (e.keyCode == 32 && ark.opt.ball_stucked == true) {
+					console.log(e.keyCode)
+				if (ark.opt.ball_stucked == true) {
 					$(document).unbind("keypress");
 					ark.opt.ball_stucked = false;
 					for (var i in ark.balls.array) {
