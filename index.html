@@ -600,9 +600,7 @@ var ark = {
 							$(document).unbind("mousemove").unbind("mouseup");
 						});
 				}
-			}).bind("keypress", function (e) {
-				if (!e) e = window.event;
-					console.log(e.keyCode)
+			}).bind("keypress", function () {
 				if (ark.opt.ball_stucked == true) {
 					$(document).unbind("keypress");
 					ark.opt.ball_stucked = false;
